@@ -1,0 +1,36 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node --env-file=.env index.js",
+    "seed": "node --env-file=.env index.js seed",
+    "indexes": "node --env-file=.env index.js indexes",
+    "promote-admin": "node --env-file=.env index.js promote-admin"
+  },
+  "nodemonConfig": {
+    "exec": "node --env-file=.env",
+    "watch": [
+      "index.js",
+      "../packages"
+    ],
+    "ext": "js,json",
+    "delay": "300"
+  },
+  "dependencies": {
+    "@doctor-tracker/auth": "*",
+    "@doctor-tracker/validation": "*",
+    "better-auth": "^1.7.15",
+    "cors": "^2.8.5",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "mongodb": "^7.8.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

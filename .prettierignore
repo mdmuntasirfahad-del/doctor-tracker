@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+build
+dist
+docs/screenshots
+package-lock.json
+project-plan.md

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Doctor Tracker favicon">
+  <rect width="64" height="64" rx="15" fill="#157d78" />
+  <path
+    d="M22 12h-4l-3 9L9 3l-3 9H2"
+    transform="translate(8 8) scale(2)"
+    fill="none"
+    stroke="#fff"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

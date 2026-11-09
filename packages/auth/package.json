@@ -1,0 +1,14 @@
+{
+  "name": "@doctor-tracker/auth",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "better-auth": "^1.7.15",
+    "mongodb": "^7.8.0",
+    "zod": "^4.6.7"
+  }
+}

@@ -1,0 +1,577 @@
+# Doctor Tracker - Cursor Project Rules
+
+You are a senior full-stack JavaScript engineer building **Doctor Tracker**, a secure workspace with an administrative area plus self-service doctor and patient portals. These rules apply to every file you create or modify in this repository.
+
+## 0. Absolute Rules
+
+1. **JavaScript only.** Never create `.ts`/`.tsx` files, `tsconfig.json`, `.d.ts` files, or use TypeScript syntax, decorators, interfaces, or type-only packages. ESLint/Prettier configs must be JavaScript or JSON (e.g. `eslint.config.mjs`).
+2. **Never use Mongoose, Prisma, TypeORM, or any ODM/ORM.** Use the official `mongodb` Node.js driver exclusively.
+3. **Never implement CRUD in Next.js route handlers.** Business data lives behind the standalone Express API. The only Next.js route handler allowed is the Better Auth handler at `client/app/api/auth/[...all]/route.js`.
+4. **Never expose secrets** (`MONGODB_URI`, `BETTER_AUTH_SECRET`) to the browser. Only variables prefixed `NEXT_PUBLIC_` may be read by client code, and none of the secrets above may use that prefix.
+5. **Never trust client input.** Validate every request body, query string, and route param on the server. Authorization is enforced on the server, not by hiding UI.
+6. **Do not add libraries outside the approved stack** without asking first. No Redux, Zustand, MobX, Axios, SWR, NextAuth/Auth.js, tRPC, GraphQL, Prisma, Mongoose, or TypeScript tooling. Prefer native `fetch` and small utilities.
+7. **Do not invent product features, fields, or routes** that are not described here or in `recuirements.txt`. When the spec is ambiguous, ask before adding scope.
+8. **Follow this file over generic habits.** If a requirement conflicts with these rules, stop and ask.
+9. **Backend stays in one file.** All Express routes, handlers, MongoDB access, dashboard aggregations, and CLI `seed`/`indexes` logic live in `server/index.js`. Do not introduce controllers, services, module routers, or a `server/src/` tree. Shared packages (`packages/auth`, `packages/validation`) are allowed because the Next.js client imports them.
+
+## 1. Product Scope (source: `recuirements.txt`)
+
+The app is an authenticated workspace with two surfaces: an **admin area** (Dashboard, Doctors, Patients, and Registration Requests) and a **portal** for approved doctors and patients. Doctors can edit their own profile, open the profiles of their assigned patients, and end care by marking a patient as **treated** or **rejected**. Patients can edit their own profile, choose the doctor assigned to their care, see that doctor's full profile, and review their past doctors.
+
+- Authentication: secure login, all workspace routes protected. The public site at `/` may link to login and registration. Public registration requests are allowed only as pending `registration_requests`; they collect a password for later account creation but never create accounts or live doctor/patient records themselves. Accounts are created by an administrator approving the request, or by the seed command for the administrator.
+- Roles: Better Auth roles are `admin`, `doctor`, and `patient`. Administrators retain the full CRUD workspace. Approved doctors can edit their own profile, see assigned patients, open their full profiles, and mark an assigned patient as treated or rejected (both release the patient to choose a new doctor; treated entries are retained in the doctor's history, rejected entries are not). Approved patients can edit their own profile, change their assigned doctor, see only their own record plus the profile of their current doctor, and review their own past doctors. Neither portal role can end care except a doctor acting on a currently assigned patient.
+- Doctors: create doctor (name, specialization, hospital, phone, email), list, search, filter (date-wise and relevant filters), paginate, view a doctor's patients, add a patient under a doctor, delete patients from that doctor's list, and delete a doctor only when no patients or pending patient requests reference it.
+- Patients: dedicated page listing all patients, edit patient information, delete patients, pagination, search, filtering (date-wise, patient condition, other relevant filters).
+- Dashboard: total doctors, total patients, patients per doctor, date-based statistics, charts/graphs. Clean aggregation, optimized queries, meaningful insights.
+- UI/UX: modern, clean layout, strong hierarchy, spacing, responsive, smooth navigation, excellent UX.
+- Performance: indexed MongoDB queries for search/filter/pagination, efficient query patterns, no unnecessary React re-renders, clean folder structure, reusable components, API validation and error handling.
+- README: elevator pitch, setup guide with `.env.example`, system architecture, two specific technical decisions, high-quality desktop + mobile screenshots.
+
+Spec conflict resolution: `recuirements.txt` mentions both "Next.js full-stack" and a "separate Express server". **This project is a Next.js client (`client/`) plus a standalone Express REST API (`server/`).** Do not collapse them into one Next.js app.
+
+## 2. Approved Stack
+
+### Frontend (`client/`)
+- Next.js (App Router, latest stable) + React, JavaScript only
+- Tailwind CSS
+- daisyUI (primary design system)
+- HeroUI (secondary, for complex interactive widgets only)
+- Lucide React (the only icon library)
+- Motion (`motion` package, import from `motion/react`) for purposeful animation
+- TanStack Query (`@tanstack/react-query`) for server state
+- Recharts for dashboard visualization
+- React Hook Form + Zod for forms and client-side validation
+
+### Backend (`server/`)
+- Node.js with ES modules (`"type": "module"`)
+- Express, `cors`, `helmet`, `express-rate-limit`
+- `mongodb` native driver (no ODM)
+- Zod for request validation
+- Better Auth for authentication and session management
+- Native Node env loading via `node --env-file=.env`; do not add `dotenv` as a runtime dependency
+
+### Shared workspace packages (`packages/`)
+- `packages/auth` - single Better Auth configuration using the native MongoDB adapter
+- `packages/validation` - shared Zod schemas for forms and API validation; create/update schemas live here
+
+### Tooling
+- ESLint + Prettier, npm workspaces
+- MongoDB (local or Atlas)
+- No TypeScript, no test framework unless explicitly requested
+- Dev-only tooling (`concurrently`, `nodemon`) may be added as devDependencies; no other runtime libraries
+
+## 3. Repository Layout
+
+```
+DoctorTracker/
+├── package.json                 # npm workspaces root; dev/lint/build scripts
+├── .env.example                 # documents every variable for both apps
+├── README.md
+├── recuirements.txt
+├── .cursorrules
+├── client/
+│   ├── app/
+│   │   ├── layout.js            # root providers, fonts, metadata
+│   │   ├── globals.css          # Tailwind + daisyUI theme tokens
+│   │   ├── login/page.js
+│   │   ├── access-denied/page.js
+│   │   ├── (public)/            # public home and registration pages
+│   │   ├── (dashboard)/
+│   │   │   ├── layout.js        # server-side admin guard + app shell
+│   │   │   ├── dashboard/page.js
+│   │   │   ├── doctors/page.js
+│   │   │   ├── doctors/[id]/page.js
+│   │   │   ├── patients/page.js
+│   │   │   └── registration_request/page.js
+│   │   ├── (portal)/
+│   │   │   ├── layout.js        # server-side doctor/patient guard + portal shell
+│   │   │   └── portal/page.js
+│   │   └── api/auth/[...all]/route.js
+│   ├── components/
+│   │   ├── layout/              # app shell, portal shell, navbars, drawer, user menu
+│   │   ├── public/              # registration form and success state
+│   │   ├── portal/              # doctor/patient self-service portal views
+│   │   ├── ui/                  # shared primitives (PageHeader, EmptyState, ConfirmDialog, Pagination, StatCard)
+│   │   ├── doctors/
+│   │   ├── patients/
+│   │   └── dashboard/
+│   ├── hooks/                   # doctors, patients, dashboard, portal, URL state, debounce
+│   ├── lib/
+│   │   ├── api-client.js        # fetch wrapper + error normalization
+│   │   ├── auth-client.js       # createAuthClient (browser safe)
+│   │   ├── query-client.js
+│   │   ├── query-keys.js
+│   │   ├── safe-return-to.js    # role-aware post-login destinations
+│   │   └── formatters.js
+│   ├── providers/               # query + auth providers
+│   ├── proxy.js                 # optimistic auth redirect only (Next.js 16 name)
+│   ├── next.config.mjs          # /api/v1 rewrite to Express
+│   ├── jsconfig.json            # path alias "@/*" (JavaScript, not TypeScript)
+│   └── .env.example
+├── server/
+│   ├── index.js                 # env, routes, handlers, MongoDB, seed + indexes CLI
+│   ├── package.json             # nodemon dev script and dependencies
+│   └── .env.example
+├── packages/
+│   ├── auth/
+│   │   ├── index.js
+│   │   └── package.json
+│   └── validation/
+│       ├── index.js
+│       └── package.json
+└── docs/screenshots/            # desktop + mobile screenshots used in README
+```
+
+- Use npm workspaces: `["client", "server", "packages/*"]`.
+- Root scripts: `dev` runs client + server concurrently, `lint`, `build`.
+- Use `@doctor-tracker/auth` and `@doctor-tracker/validation` package names.
+- Add workspace packages to `transpilePackages` in `next.config.mjs`.
+- Kebab-case filenames; PascalCase React component exports.
+
+## 4. Architecture and Data Flow
+
+```
+Browser
+  ├─ Next.js pages (RSC shell + client components)
+  │     └─ fetch("/api/v1/...")  →  Next.js rewrite  →  Express API  →  MongoDB
+  └─ Better Auth client  →  /api/auth/* (Next.js)  →  Better Auth  →  MongoDB
+```
+
+- The browser only calls same-origin paths. `next.config.mjs` rewrites `/api/v1/:path*` to `${process.env.API_URL}/api/v1/:path*`.
+- Express remains directly reachable for tooling; CORS is still configured as defense in depth.
+- Express authenticates every `/api/v1` request except `GET /health` and the three public registration routes by calling the shared Better Auth instance with the forwarded headers. Portal routes then require the matching `doctor` or `patient` role; all remaining protected routes require `admin`.
+- Portal reads resolve the doctor or patient record from the authenticated session user ID, never from a client-supplied directory ID. Portal writes are `PATCH /portal/doctor` for the signed-in doctor's own profile, `POST /portal/doctor/patients/:id/treatment` for ending care with a currently assigned patient, and `PATCH /portal/patient` plus `PATCH /portal/patient/doctor` for the signed-in patient's own profile and assigned doctor.
+- Server components render shells and enforce route protection. Data-heavy views are client components using TanStack Query. Do not mix RSC data fetching and React Query for the same resource.
+- Never call Express from the browser without the proxy in production; the proxy keeps Better Auth cookies first-party.
+
+## 5. Authentication (Better Auth)
+
+### Configuration
+- Keep exactly **one** Better Auth configuration in `packages/auth/index.js`. Never duplicate options in `client/` and `server/`.
+- Use `mongodbAdapter(db)` from `better-auth/adapters/mongodb` with the native `mongodb` driver. Do not use the Mongoose adapter.
+- Enable email/password authentication and set `disableSignUp: true`. Do not add a public account sign-up page; public registration collects pending requests with an encrypted password for administrator review. Provision the administrator through `node index.js seed` via `auth.api.createUser`, never by inserting password hashes manually. Approve doctor/patient requests through `auth.api.createUser` with role `doctor` or `patient`.
+- Never return `passwordCredential`, Better Auth user IDs, or raw session data from an API serializer.
+- Pending passwords use AES-256-GCM with an HKDF-derived key from `BETTER_AUTH_SECRET`; AAD binds the credential to `${type}:${normalizedEmail}`. Decrypt only inside the approval path.
+- Required env: `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (e.g. `http://localhost:3000`), `MONGODB_URI`, `MONGODB_DB`.
+- Configure `trustedOrigins` with the client origin and set secure cookie options for production.
+- Cache the `MongoClient`/auth instance across dev hot reloads (`globalThis`) to avoid connection leaks. Create one client per process, never per request.
+- Never import `@doctor-tracker/auth` from client components, `client/proxy.js`, or anything bundled for the browser. Only server routes/layouts and `server/` may import it.
+- Never read or write Better Auth's collections (`user`, `session`, `account`, `verification`) directly from `server/index.js`, except the narrow `promote-admin` fallback that updates the single existing `SEED_ADMIN_EMAIL` user's role. Use Better Auth APIs for account creation, removal, and sessions.
+
+### Next.js side
+- `client/app/api/auth/[...all]/route.js`:
+
+```js
+import { toNextJsHandler } from "better-auth/next-js";
+import { auth } from "@doctor-tracker/auth";
+
+export const { GET, POST } = toNextJsHandler(auth);
+```
+
+- Browser client in `client/lib/auth-client.js` uses `createAuthClient` from `better-auth/react` with `NEXT_PUBLIC_APP_URL`.
+- Protect the admin area in `client/app/(dashboard)/layout.js` with a real server check (`auth.api.getSession({ headers: await headers() })`); redirect unauthenticated visitors to `/login`, send doctors and patients to `/portal`, and hide the workspace from every other role.
+- Protect the portal in `client/app/(portal)/layout.js` with the same server check; allow only `doctor` and `patient`, send administrators to `/dashboard`, and never treat the UI as authorization.
+- `client/proxy.js` may use `getSessionCookie` for an optimistic redirect only. Cookie presence is not authorization; always keep the layout check and API check.
+- Login form uses `authClient.signIn.email`, displays field-level errors, disables while pending, then redirects with the role-aware `safeReturnTo(...)` helper and calls `router.refresh()`.
+- Client `AuthProvider` uses `authClient.useSession()` to handle session expiry and render a skeleton while loading; sign-out calls `authClient.signOut` then redirects to `/login`.
+
+### Express side
+- `requireAuth` lives in `server/index.js`:
+
+```js
+async function requireAuth(req, res, next) {
+  try {
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!session) {
+      return next(ApiError.unauthorized());
+    }
+    req.user = session.user;
+    req.session = session.session;
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+}
+```
+
+- Apply `requireAuth` to all `/api/v1` routes except `GET /health` and the public routes registered before the guard: `GET /public/doctors/options`, `POST /public/registrations/doctors`, and `POST /public/registrations/patients`. Then guard the portal routes with `requireRole("doctor" | "patient")`: doctors may read their portal, `PATCH` only their own profile, and end care only for patients currently assigned to them; patients may read and `PATCH` only their own profile, their own assigned doctor, and their own history, and every remaining route requires `requireAdmin`. Never accept a user id from the request body; derive identity from the session.
+- Forward cookies through the Next.js rewrite. Do not attempt custom cookie parsing or JWT decoding.
+
+## 6. Backend Rules (Express)
+
+### Structure and boot
+- Keep the entire backend in `server/index.js`. Organize it with clear section comments: environment, HTTP helpers, database/indexes, doctors, patients, public registrations, portal read models, Better Auth account helpers, dashboard, auth middleware, app assembly, seed data, startup/CLI.
+- `npm run dev -w server` runs `nodemon index.js`. `server/package.json` uses `nodemonConfig.exec: "node --env-file=.env"` so the existing `.env` file is loaded without adding `dotenv`.
+- `npm run start -w server` runs `node --env-file=.env index.js`. Startup connects to MongoDB, verifies indexes, listens, and handles `SIGINT`/`SIGTERM` with graceful shutdown. Env must exist before `packages/auth` is evaluated.
+- Build the app with `helmet`, `cors`, `express.json({ limit: "1mb" })`, routes, a 404 handler, and a centralized error handler.
+- Validate env with Zod at startup and fail fast with a readable message. Do not add a separate `config/env.js`.
+- There are no controllers, services, serializers modules, or routers spread across files. Define route handlers in `index.js` and keep database logic directly below the relevant section.
+- Wrap async handlers with `asyncHandler`; do not repeat try/catch in every route.
+- Use ES modules and named exports everywhere except where a framework requires otherwise.
+
+### MongoDB access
+- Use the single shared `MongoClient`/`getDb()` from `packages/auth` directly in `server/index.js`. Never connect per request or create a second client.
+- Use `process.env.MONGODB_DB` (default `doctor_tracker`); use `127.0.0.1` in local example URIs to avoid IPv6 resolution issues.
+- Store `Date` objects, not strings. Serialize to ISO strings in API responses. Always maintain `createdAt` and `updatedAt`.
+- Create indexes idempotently at startup via `db.collection(...).createIndexes([...])`; also provide `npm run indexes` (`node index.js indexes`) and `node index.js seed`. Index creation must not take the API down on failure; log clearly.
+- Use projections for list/detail queries; never return entire documents by default.
+- Stable pagination: always add `_id` as the final sort tiebreaker (e.g. `{ createdAt: -1, _id: -1 }`).
+- Prefer one aggregation with `$facet` when both page data and total count are needed. Otherwise use `Promise.all` for independent `find` + `countDocuments`.
+- Validate and convert `_id` with `ObjectId.isValid`; return `400` for malformed ids and `404` for missing documents.
+- Never pass `req.body`, `req.query`, or client-provided objects directly into MongoDB filters. Build filters field-by-field from validated input.
+- Reject keys starting with `$` or containing dots. Never use `$where`, `mapReduce`, or server-side JavaScript.
+- Handle duplicate key errors (`E11000`) as `409 CONFLICT` with a helpful message.
+- Approval, patient creation/update, and doctor deletion use MongoDB transactions. The deployment must be a replica set or sharded cluster; document this requirement instead of silently weakening the guarantees.
+- Do not denormalize counters that can drift. Compute patient counts with indexed aggregation at read time.
+
+### Validation
+- Validate all input with Zod schemas from `packages/validation` (server imports the same schemas the forms use).
+- Apply `.strict()` to request bodies to reject unknown fields. Trim strings; enforce reasonable min/max lengths.
+- Parse query params into typed values (`page`, `limit`, dates) before database code sees them.
+- Doctor: `name` 2-100, `specialization` 2-100, `hospital` 2-150, `phone` 7-20, valid `email`.
+- Patient: `name` 2-100, `age` integer 0-130, `gender` in `male|female|other`, `condition` 2-150, `phone` 7-20, valid `email` (optional for administrator-created records, required for public registration), `doctorId` valid ObjectId string.
+- Public registration adds `password` (8-128) and the form-only `confirmPassword`; never store either in plaintext.
+- On validation failure return `400 VALIDATION_ERROR` with field-level details. Never echo stack traces.
+
+### API conventions
+- Base path: `/api/v1`. Health check: `GET /health` (no auth, returns `{ success: true, data: { status: "ok" } }`). Public registration routes are explicitly registered before `requireAuth`; portal routes require the matching role; everything else requires the `admin` role.
+- Success envelope: `{ "success": true, "data": ..., "meta": ... }`.
+- Error envelope: `{ "success": false, "error": { "code": "...", "message": "...", "details": ... } }`.
+- Pagination meta: `{ page, limit, total, totalPages, hasNextPage, hasPrevPage }`.
+- Defaults: `page=1`, `limit=20`; clamp `limit` to `1..100`. Reject `page < 1`.
+- Serialize `_id` as `id` (string). Never expose raw BSON, Mongo errors, internal field names, `userId`, or password credentials to the client.
+- Status codes: `200` read/update, `201` create, `204` delete (empty body), `400` validation, `401` unauthenticated, `403` forbidden/role mismatch, `404` not found, `409` conflict, `429` rate limited, `500` unexpected, `503` transaction support unavailable.
+- Error codes: `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `SERVICE_UNAVAILABLE`, `INTERNAL_ERROR`.
+- Accept JSON only. Validate `Content-Type` for writes and return a clear `400` otherwise.
+- Rate limit the API with `express-rate-limit` (stricter on writes); rely on Better Auth's built-in rate limiting for auth routes. Public registration writes use a separate limit of 10 requests per 10 minutes per IP.
+
+### Endpoints (canonical)
+```
+GET    /health
+
+GET    /api/v1/public/doctors/options                 # public, limited fields for patient registration
+POST   /api/v1/public/registrations/doctors           # public, creates pending registration_requests document
+POST   /api/v1/public/registrations/patients          # public, validates doctorId, creates pending request
+
+GET    /api/v1/portal/doctor                          # doctor role, own profile + patient count
+PATCH  /api/v1/portal/doctor                          # doctor role, own profile fields only
+GET    /api/v1/portal/doctor/patients                 # doctor role, only this doctor's patients
+POST   /api/v1/portal/doctor/patients/:id/treatment   # doctor role, { outcome: "treated" | "rejected" }; releases patient + history
+GET    /api/v1/portal/doctor/history                  # doctor role, treated patients only
+GET    /api/v1/portal/patient                         # patient role, own record + assigned doctor
+PATCH  /api/v1/portal/patient                         # patient role, own profile fields only
+PATCH  /api/v1/portal/patient/doctor                  # patient role, { doctorId } only; moves own record
+GET    /api/v1/portal/patient/history                 # patient role, own past doctors (both outcomes)
+
+GET    /api/v1/doctors
+POST   /api/v1/doctors
+GET    /api/v1/doctors/options        # lightweight select options, limit <= 50; register before /:id
+GET    /api/v1/doctors/:id
+PATCH  /api/v1/doctors/:id
+DELETE /api/v1/doctors/:id            # admin only; refused while patients or pending requests reference it
+GET    /api/v1/doctors/:id/patients   # scoped read; same filters/pagination as patient list
+
+POST   /api/v1/patients               # canonical create; body includes doctorId
+GET    /api/v1/patients
+GET    /api/v1/patients/:id
+PATCH  /api/v1/patients/:id
+DELETE /api/v1/patients/:id
+
+GET    /api/v1/registration-requests
+POST   /api/v1/registration-requests/:id/approve   # creates account, inserts record, removes request
+DELETE /api/v1/registration-requests/:id
+
+GET    /api/v1/dashboard/summary          # totals + average patients per doctor
+GET    /api/v1/dashboard/patients-per-doctor
+GET    /api/v1/dashboard/patients-over-time?range=7d|30d|90d|12m
+```
+
+- Doctor list/create/edit/delete are in scope. Doctor deletion must be refused while patients or pending patient requests reference the doctor, and must never cascade patient deletion.
+- Public registration writes create `registration_requests` documents with `status: "pending"`; they never write directly to `doctors` or `patients` and never create Better Auth accounts. Approval creates the account through `auth.api.createUser`, then transactionally inserts the directory record and removes the pending request. If the transaction fails, remove the new account on a best-effort basis. A partial unique index prevents duplicate pending doctor emails.
+- Legacy pending requests without `passwordCredential` approve as directory records without an account. Corrupt or unsupported credentials fail with `409`.
+- Portal routes resolve the record from `req.user.id`; never accept a record ID from the client. `PATCH /portal/doctor` may update only the signed-in doctor's `name`, `specialization`, `hospital`, and `phone`. The patient route enriches only the signed-in patient's own record with their assigned doctor's `hospital`, `phone`, and `email`. `PATCH /portal/patient` may update only the signed-in patient's `name`, `age`, `gender`, `condition`, and `phone`; `PATCH /portal/patient/doctor` accepts only `doctorId`, verifies the doctor, and moves the patient's record transactionally.
+- `POST /portal/doctor/patients/:id/treatment` accepts only `outcome` (`treated` or `rejected`). It must resolve the doctor from the session, require the patient to be currently assigned to that doctor (otherwise `404`), append an immutable `patient_history` snapshot, clear the patient's `doctorId`, and return the new history entry in one transaction. History reads never accept a portal record ID: doctor history shows only the signed-in doctor's `treated` entries, and patient history shows only the signed-in patient's entries (both outcomes).
+- Patient deletion is required. Patient edit is required. Deleting a patient must not touch the doctor.
+- List query params:
+  - Doctors: `page, limit, search, specialization, hospital, from, to, sort, order`
+  - Patients: `page, limit, search, condition, doctorId, from, to, sort, order`
+  - `from`/`to` are ISO dates applied to `createdAt` by default; validate `from <= to`. Document this assumption in the README. If visit dates are later required, add an explicit `visitAt` field instead of reinterpreting `createdAt`.
+  - Whitelist `sort` (`createdAt`, `name`) and `order` (`asc`, `desc`); default `createdAt desc`.
+- Doctor list responses include `patientCount` computed in the same aggregation as the page (page doctors first, then `$lookup` patients for those ids and count). Doctors with zero patients must show `0`, not disappear. Never issue a count query per doctor.
+- Patient list responses include a minimal doctor summary `{ id, name, specialization }` via `$lookup` with a pipeline + projection; never fetch full doctor documents per row.
+- When adding a patient, verify the doctor exists first. Return `404 DOCTOR_NOT_FOUND` if not.
+- Deleting a patient returns `204`; editing returns the updated patient; creates return `201`.
+
+### Search and filtering
+- Trim search, enforce max 100 chars, and escape regex metacharacters. Never build a `RegExp` from raw input.
+- Use the MongoDB text indexes for multi-word free-text search (`$text` with `$meta: "textScore"` if relevance sorting is wanted). If the UX truly requires substring/prefix matching, add normalized lowercase fields (e.g. `nameLower`) plus indexes and use anchored prefix regex; never run unbounded, unanchored regex over a collection.
+- Filter dropdown values (specialization, hospital, condition) come from validated exact values, ideally populated from `distinct()` or an aggregation endpoint. Use trimmed equality, not fuzzy matching.
+- Apply filters and pagination in the database. Never fetch all documents and slice in Node.js.
+
+### Indexes (minimum)
+Doctors:
+```js
+{ key: { email: 1 }, name: "uniq_doctor_email", unique: true }
+{ key: { userId: 1 }, name: "uniq_doctor_user", unique: true, sparse: true }
+{ key: { registrationRequestId: 1 }, name: "uniq_doctor_registration_request", unique: true, sparse: true }
+{ key: { createdAt: -1 }, name: "doctors_created_at" }
+{ key: { specialization: 1, createdAt: -1 }, name: "doctors_specialization_created_at" }
+{ key: { hospital: 1, createdAt: -1 }, name: "doctors_hospital_created_at" }
+{ key: { name: "text", specialization: "text", hospital: "text", email: "text" }, name: "doctors_search" }
+```
+Patients:
+```js
+{ key: { userId: 1 }, name: "uniq_patient_user", unique: true, sparse: true }
+{ key: { registrationRequestId: 1 }, name: "uniq_patient_registration_request", unique: true, sparse: true }
+{ key: { doctorId: 1, createdAt: -1 }, name: "patients_doctor_created_at" }
+{ key: { condition: 1, createdAt: -1 }, name: "patients_condition_created_at" }
+{ key: { createdAt: -1 }, name: "patients_created_at" }
+{ key: { name: "text", condition: "text" }, name: "patients_search" }
+```
+Registration requests:
+```js
+{ key: { type: 1, status: 1, createdAt: -1 }, name: "registrations_type_status_created_at" }
+{ key: { doctorId: 1 }, name: "registrations_doctor_id" }
+{ key: { email: 1 }, name: "registrations_pending_doctor_email", unique: true, partialFilterExpression: { type: "doctor", status: "pending" } }
+```
+Patient history:
+```js
+{ key: { patientId: 1, endedAt: -1 }, name: "patient_history_patient_ended_at" }
+{ key: { doctorId: 1, outcome: 1, endedAt: -1 }, name: "patient_history_doctor_outcome_ended_at" }
+```
+- Add compound indexes only when a real query pattern needs them; remove unused indexes.
+- Do not create a text index and a compound `{name: 1}` index "just in case".
+
+### Dashboard aggregation
+- `summary`: exact `countDocuments` for doctors and patients (in `Promise.all`), plus average patients per doctor computed in the aggregation result. Return deltas for the selected range if the UI supports it.
+- `patients-per-doctor`: one pipeline: `$group` patients by `doctorId` -> `$lookup` doctors -> `$project` name/specialization/count -> `$sort` count desc -> limit top 10. Never query in a loop.
+- `patients-over-time`: one pipeline grouping by UTC day/month using `$dateToString` or `$dateTrunc`; zero-fill missing buckets in JS. Validate `range` against the allowlist. Document the UTC decision.
+- Keep dashboard read models in the dashboard section of `server/index.js`; do not reuse table list endpoints by fetching everything client-side.
+- Cache nothing server-side initially; use React Query `staleTime` on the client. If caching is added, document invalidation.
+
+### Security and CORS
+- `cors` with an explicit allowlist from `CORS_ORIGINS` (comma-separated). `credentials: true`; never use `*` with credentials. Include `GET, POST, PATCH, DELETE, OPTIONS` and standard headers.
+- Enable `helmet`, disable `x-powered-by`, and set a JSON body size limit.
+- Production: no stack traces, no raw database errors, no debug logs in responses.
+- Never log request bodies that may contain credentials or personal data.
+- Treat all patient/doctor contact data as PII: do not log it, and only return what the UI needs.
+
+## 7. Data Model
+
+### `doctors`
+| Field | Type | Rules |
+| --- | --- | --- |
+| `_id` | ObjectId | server-generated |
+| `name` | string | required, trimmed, 2-100 |
+| `specialization` | string | required, trimmed, 2-100 |
+| `hospital` | string | required, trimmed, 2-150 |
+| `phone` | string | required, 7-20 |
+| `email` | string | required, valid, unique, lowercase |
+| `userId` | string | optional linked Better Auth user; unique, sparse |
+| `registrationRequestId` | ObjectId | optional source request; unique, sparse |
+| `createdAt` | Date | server-set |
+| `updatedAt` | Date | server-set |
+
+### `patients`
+| Field | Type | Rules |
+| --- | --- | --- |
+| `_id` | ObjectId | server-generated |
+| `name` | string | required, trimmed, 2-100 |
+| `age` | number | required integer, 0-130 |
+| `gender` | string | required, `male`, `female`, or `other` |
+| `condition` | string | required, trimmed, 2-150 |
+| `phone` | string | required, 7-20 |
+| `email` | string | optional for admin-created records; required for public registration, valid |
+| `userId` | string | optional linked Better Auth user; unique, sparse |
+| `doctorId` | ObjectId | optional reference to `doctors._id`; cleared when care ends |
+| `registrationRequestId` | ObjectId | optional source request; unique, sparse |
+| `createdAt` | Date | server-set |
+| `updatedAt` | Date | server-set |
+
+### `patient_history`
+| Field | Type | Rules |
+| --- | --- | --- |
+| `_id` | ObjectId | server-generated |
+| `patientId` | ObjectId | reference to the patient record |
+| `doctorId` | ObjectId | reference to the doctor who ended care |
+| `patient` | object | `{ reference, name, age, gender, condition, phone, email }` snapshot |
+| `doctor` | object | `{ name, specialization, hospital, phone, email }` snapshot |
+| `outcome` | string | `treated` or `rejected` |
+| `endedAt` | Date | server-set time care ended |
+
+- Written only by `POST /portal/doctor/patients/:id/treatment`, in the same transaction that clears the patient's `doctorId`.
+- Immutable snapshots: later profile edits do not rewrite history. Doctor history reads filter `outcome: "treated"`; patient history reads return both outcomes.
+- Deleting a patient deletes that patient's history entries. Deleting a doctor remains refused while patients reference it; existing snapshots keep the captured doctor details.
+
+### `registration_requests`
+| Field | Type | Rules |
+| --- | --- | --- |
+| `_id` | ObjectId | server-generated |
+| `type` | string | `doctor` or `patient` |
+| `role` | string | `doctor` or `patient` |
+| `status` | string | `pending` until approved or deleted |
+| `name`, `phone` | string | required, validated like the directory record |
+| `email` | string | required for new public requests; unique among pending doctor requests |
+| `passwordCredential` | object | AES-256-GCM `{ algorithm, version, iv, tag, ciphertext }`; never serialized |
+| `doctorId`, `doctorSnapshot` | ObjectId / object | patient requests only; snapshot of the selected doctor |
+| `createdAt`, `updatedAt` | Date | server-set |
+
+- API responses use camelCase and expose `id` (hex string), never `_id`, `userId`, or `passwordCredential`.
+- Do not add fields beyond these unless a feature requires them and the spec is updated.
+- Better Auth owns `user`, `session`, `account`, and `verification`. Do not modify their schema manually.
+
+## 8. Frontend Rules (Next.js)
+
+### Rendering and data fetching
+- Default to server components; add `"use client"` only at the smallest interactive boundary.
+- Providers (`QueryClientProvider`, auth provider) live in client components imported by `app/layout.js`.
+- Use TanStack Query for all Express data. No `useEffect` data fetching, no SWR, no ad-hoc global stores.
+- `client/lib/api-client.js` wraps `fetch("/api/v1/...", { credentials: "include" })`, parses the envelope, throws a typed `ApiError` for non-2xx or `success: false`, and supports `AbortSignal`.
+- Query keys live in `client/lib/query-keys.js` and include every filter/pagination value. Invalidate related keys after mutations, including dashboard keys.
+- Set sensible defaults: `staleTime: 30_000`, `retry: 1`, `refetchOnWindowFocus: false`. Use `placeholderData: keepPreviousData` for paginated tables so the UI does not flash.
+- Never let the client compute totals or dashboard aggregates from full datasets; those come from the API.
+
+### Routing and URL state
+- Use the App Router with role-scoped route groups: `(public)` for the unauthenticated home and registration pages, `(dashboard)` for admin pages, `(portal)` for doctor/patient pages, and `login` outside all groups.
+- `/` is the public home page; `/register` is public registration and accepts `?type=doctor|patient`; both protected layouts redirect unauthenticated users to `/login` with a role-safe `returnTo`.
+- The admin layout allows only `admin`; the portal layout allows only `doctor` and `patient`. Login redirects by role: admin to `/dashboard`, doctor/patient to `/portal`, unknown roles to `/access-denied`.
+- The doctor portal may expose only a self-profile edit form for the signed-in doctor plus read-only profile sheets for assigned patients. The patient portal may expose only a self-profile edit form and a doctor-change form for the signed-in patient. Neither portal has create, delete, patient-assignment, or admin controls. Hide admin actions in shared tables/cards with an explicit read-only mode rather than relying on CSS.
+- Keep filters, search, sort, and pagination in the URL query string. Use `useSearchParams`, `useRouter`, and `usePathname`; update with `router.replace(..., { scroll: false })`.
+- Reset `page` to 1 whenever any filter/search/sort changes. Preserve other filters when changing page or page size.
+- Keep the search input in local state for typing, debounce it (~350ms), then write to the URL. Sync local state when the URL changes via back/forward navigation.
+- Provide shareable URLs for filtered views. Do not mirror URL state into React state.
+- Navigation: Dashboard, Doctors, Patients in a persistent sidebar (desktop) and a daisyUI drawer (mobile). Keep the active route highlighted and the sidebar usable on small screens.
+
+### UI system
+- **daisyUI is the primary component/design system.** Use daisyUI for buttons, inputs, selects, tables, badges, modals, dropdowns, cards, alerts, toasts, navbar, drawer, and pagination. Use Tailwind utilities for layout/spacing.
+- **HeroUI is secondary and selective.** Use it only when it clearly improves a complex widget (e.g. accessible autocomplete or date picker) and the installed HeroUI version is compatible with the installed Tailwind version. If versions conflict, prefer daisyUI + native controls rather than downgrading Tailwind or breaking styles. Never override HeroUI internals or duplicate the same control in both libraries.
+- Wrap the app in the HeroUI provider if HeroUI is used. Verify compatibility of Next.js, React, Tailwind, daisyUI, and HeroUI before adding components; document chosen versions in the README.
+- Define one polished daisyUI theme with CSS variables in `globals.css`. Do not use hard-coded hex colors in components; use theme tokens (`primary`, `base-100`, `base-content`, etc.).
+- Icons: **Lucide React only**, sized consistently (16/18/20/24). No emoji icons, no other icon packs.
+- Typography and spacing: consistent scale; page titles with a short description; avoid dense walls of controls. Use cards/sections with clear hierarchy.
+- Keep the design modern but restrained: subtle borders, consistent radii, clear focus states, a small accent color. No gradient overload, no random animations.
+
+### Pages and components
+- Dashboard:
+  - KPI cards: total doctors, total patients, average patients per doctor, new patients in the selected range.
+  - Charts: bar chart for patients per doctor (top 10) and line/area chart for patients over time. Include date-range control and empty states.
+  - Recharts only; charts are client components. Use `ResponsiveContainer`, consistent colors from CSS variables, tooltips, and `accessibilityLayer`. Dynamically import chart components with `next/dynamic` if bundle size warrants it.
+- Doctors list:
+  - Create doctor dialog/page with the required fields.
+  - Search, specialization/hospital filters, date range, sortable columns, pagination, page-size selector.
+  - Row action: "View patients". Show patient count.
+  - Desktop table + mobile card list; never rely on horizontal scroll alone for primary actions.
+- Doctor detail:
+  - Doctor header card with contact info.
+  - Patient table scoped to the doctor; add patient (doctor preselected and disabled), delete patient with confirmation; edit patient links to the patient page or opens the edit dialog.
+- Patients:
+  - List all patients with search, condition filter, doctor filter, date range, sorting, pagination.
+  - Edit patient in a dialog/page with validation. Delete with a confirmation dialog showing the patient name.
+  - Link each patient row to its doctor.
+- Portal:
+  - Doctor portal: self-service edit for the signed-in doctor's profile, plus assigned patients with search/sort/pagination, a read-only profile sheet per patient, and **Treated** / **Reject** actions. Treated moves the patient to the doctor's history; Reject asks for confirmation. Both release the patient to choose a new doctor and show a success toast.
+  - Patient portal: own record, the full profile of the assigned doctor (name, specialization, hospital, phone, email), a self-profile edit form, and a doctor-change form. The doctor-change form excludes the current doctor and explains that the record moves to another doctor's patient list.
+  - `/portal/history` is shared by both roles. Doctors see treated patients only. Patients see every past doctor with neutral `Treatment completed` / `Care ended` labels. History is read-only, paginated, searchable, and sorted by `endedAt` or name. Never expose another user's history.
+  - Patient tables use the shared card/table primitives with `readOnly`; show a "View profile" action only when the portal supplies an `onView` handler, and show Treated/Reject only when the portal supplies the matching handlers. Never render admin mutation controls in either portal.
+- Shared UI:
+  - `PageHeader`, `StatCard`, `EmptyState`, `ErrorState`, `TableSkeleton`, `ConfirmDialog`, `Pagination`, `FilterBar`, `SearchInput`, `DateRangeFilter`.
+  - One table/pagination pattern reused across doctors and patients; do not fork the same logic into three variants.
+
+### Forms
+- React Hook Form + Zod resolver using shared schemas from `packages/validation` where practical.
+- Labels are always visible (no placeholder-only fields). Show inline field errors and a form-level error summary.
+- Disable submit while pending; show a spinner; prevent double submits.
+- Use daisyUI modal + form controls; close on success, invalidate queries, and show a toast.
+- Deletes always require confirmation. Use optimistic updates only if rollback is implemented; otherwise wait for the server.
+- Never submit undefined/empty optional fields as empty strings for typed fields; normalize in one place.
+
+### Motion
+- Import from `motion/react`. Use Motion for meaningful transitions only: page/section entrance, modal/dialog, list reveal, and subtle feedback.
+- Keep durations 150-300ms with ease-out; avoid animating every hover or table row.
+- Respect reduced motion (`useReducedMotion`) and avoid layout-shifting animations in tables and forms.
+- Do not use Motion to hide loading states or errors.
+
+### UX, responsiveness, accessibility
+- Mobile-first: test at 375px, 768px, and 1280px. Sidebar becomes a drawer; tables become cards or a clearly scrollable region; actions remain reachable.
+- Every async view has loading, empty, and error states with a retry path.
+- Use semantic HTML, proper `<button>` vs `<a>`, labels, `aria-describedby` for errors, `aria-live` for toasts, visible focus rings, and keyboard-operable dialogs (Esc closes, focus returns).
+- Charts include a textual summary or table fallback for screen readers.
+- Dates displayed with `Intl.DateTimeFormat`; use a single formatter from `lib/formatters.js`. Do not call `new Date()` during render for display.
+- Avoid layout shift: reserve space for charts/tables, use skeletons with matching dimensions.
+- Keep the interface clean: one primary action per view, destructive actions visually distinct.
+
+## 9. Performance
+
+- Backend: indexes for every filter/sort path, projections, `$facet` for paged counts, `$lookup` pipelines with projections, no N+1 queries, no unbounded `find()`, and capped `limit`.
+- Frontend: server-side filtering/pagination/search only; keep previous page data while fetching; abort stale searches; debounce search; avoid duplicate requests via stable query keys.
+- Do not wrap everything in `useMemo`/`useCallback`/`React.memo`. Optimize only measured hot paths (large tables, chart data transforms).
+- Split large client components; keep chart and heavy dialog code out of the initial bundle where practical.
+- Prefer `next/image` for real image assets; there are no decorative image requirements in this project.
+- Use CSS/Tailwind for layout; avoid JS-driven resize logic.
+
+## 10. Code Style
+
+- ES modules everywhere. Server and packages set `"type": "module"`.
+- 2-space indentation, double quotes, semicolons, trailing commas, max line length ~100. Use Prettier.
+- Files kebab-case; React components PascalCase; hooks `useSomething`; constants `UPPER_SNAKE_CASE` only for true constants.
+- Named exports by default. Default exports only where Next.js requires them (pages, layouts, route handlers, configs).
+- No `console.log` in committed code. Server logs errors through the centralized error handler; client surfaces toasts/alerts.
+- No commented-out code, dead code, unused imports, or unused dependencies.
+- Comments only for non-obvious intent; do not narrate obvious code.
+- Access env only through the validated env object in `server/index.js` and Next public env constants. Do not scatter `process.env` reads.
+- Keep functions small and single-purpose; early returns over deep nesting.
+- Handle loading, empty, error, and success paths for every feature.
+- Run `npm run lint` (and build the client) before declaring work complete; fix warnings introduced by your changes.
+
+## 11. README and Deliverables
+
+- `README.md` must include:
+  1. Elevator pitch (one paragraph).
+  2. Setup guide: prerequisites, install, env files, MongoDB Atlas or an existing replica set (no Docker), seed script, run client and server, default login instructions (without committing real secrets).
+  3. System architecture: client/server/auth/DB data flow and folder overview.
+  4. Two specific technical decisions in depth (for example: native MongoDB driver over Mongoose, Better Auth over alternatives, URL state + TanStack Query over a global store).
+  5. Visual evidence: real screenshots of desktop and mobile views stored under `docs/screenshots/` and embedded in the README. Never fabricate screenshots.
+  6. API summary table and assumptions (dates map to `createdAt`, approval-created accounts, doctor self-service profile, doctor patient-profile viewing, patient self-service profile and doctor change, guarded doctor deletion).
+- Commit `.env.example` for both apps with every required variable and safe placeholders:
+  - Client: `NEXT_PUBLIC_APP_URL`, `API_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `MONGODB_URI`, `MONGODB_DB`. `API_URL` is used only by `next.config.mjs`; only `NEXT_PUBLIC_APP_URL` is exposed to the browser.
+  - Server: `PORT`, `MONGODB_URI`, `MONGODB_DB`, `CORS_ORIGINS`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`.
+- Keep secrets identical between apps where required; document that both env files must define `BETTER_AUTH_SECRET` and the Mongo connection.
+- Provide `node index.js seed` for sample doctors/patients and admin provisioning, run via `npm run seed` or `node --env-file=.env index.js seed`. Never commit real credentials.
+- Add a short "Assumptions and trade-offs" section for choices the spec leaves open.
+
+## 12. Definition of Done
+
+A feature is done only when:
+- Server validation exists for all inputs and the API returns the standard envelope.
+- The endpoint is authenticated and authorization is enforced server-side, except explicitly documented public registration routes. Portal routes are restricted to the matching role; doctor profile updates are allow-listed to the signed-in doctor, patient profile and doctor changes are allow-listed to the signed-in patient, and admin routes require `admin`.
+- Required indexes exist and queries are projection-limited, filtered, and paginated in MongoDB.
+- Loading, empty, error, and success states are implemented.
+- The UI is responsive at mobile and desktop sizes and keyboard accessible.
+- No TypeScript, no Mongoose, no Next.js CRUD route handlers, no secrets in client code.
+- `npm run lint` passes and the Next.js app builds.
+- README/env examples are updated if setup, env, API, or architecture changed.
+
+## 13. Never Do
+
+- Never add TypeScript, `.ts`/`.tsx`, `tsconfig.json`, or type-only tooling.
+- Never add Mongoose, Prisma, TypeORM, or another ODM.
+- Never put doctor/patient/dashboard CRUD in Next.js API routes.
+- Never query MongoDB from client components or expose the Mongo connection to the browser.
+- Never use `find()` without a limit for list endpoints; never paginate in memory.
+- Never accept raw query objects in Mongo filters; never allow `$`-prefixed client keys.
+- Never hard-code secrets, credentials, or production URLs.
+- Never use `*` CORS with credentials.
+- Never add a public route that writes directly to `doctors` or `patients`, creates a Better Auth account, or bypasses validation. Public registration must create a pending `registration_requests` document for administrator review.
+- Never use icons other than Lucide, or charts other than Recharts.
+- Never use unindexed unanchored regex search on unbounded collections.
+- Never trust client-side route guards as authorization.
+- Never expose `userId`, password credentials, session tokens, or Better Auth collections through an API serializer.
+- Never accept a doctor/patient record ID from a portal request; resolve it from the session user ID.
+- Never end care for a patient who is not currently assigned to the signed-in doctor, and never let either portal role read another user's history.
+- Never let a doctor update fields outside `name`, `specialization`, `hospital`, and `phone`; never let a patient update fields outside `name`, `age`, `gender`, `condition`, and `phone`; never let a patient change any doctor other than their own assignment through `doctorId`; and never let either portal role reach admin CRUD routes.
+- Never include another patient's data or any doctor other than the signed-in patient's assigned doctor in a patient portal response.
+- Never build unguarded doctor deletion or cascade patient deletion.
+- Never implement extra features without asking.
+- Never fabricate screenshots, test results, or documentation.
