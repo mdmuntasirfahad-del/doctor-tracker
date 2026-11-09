@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@doctor-tracker/auth": "^1.0.0",
     "@doctor-tracker/validation": "*",
     "@hookform/resolvers": "^7.0.1",
     "@tanstack/react-query": "^5.105.3",
