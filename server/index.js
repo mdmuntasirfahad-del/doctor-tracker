@@ -295,8 +295,7 @@ async function uploadProfilePictureToImgbb(dataUrl) {
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload?.success !== true || !payload?.data?.url) {
     console.error(
-      `[imgbb] Profile picture upload failed (${response.status}): ${
-        payload?.error?.message ?? "unknown error"
+      `[imgbb] Profile picture upload failed (${response.status}): ${payload?.error?.message ?? "unknown error"
       }`,
     );
     throw new ApiError(
@@ -341,14 +340,14 @@ function serializeDoctorOption(document) {
 function serializePatient(document) {
   const doctor = document.doctor
     ? {
-        id: document.doctor.id?.toString?.() ?? document.doctor._id?.toString?.(),
-        name: document.doctor.name,
-        specialization: document.doctor.specialization,
-        ...(document.doctor.hospital !== undefined ? { hospital: document.doctor.hospital } : {}),
-        ...(document.doctor.phone !== undefined ? { phone: document.doctor.phone } : {}),
-        ...(document.doctor.email !== undefined ? { email: document.doctor.email } : {}),
-        profilePicture: document.doctor.profilePicture ?? null,
-      }
+      id: document.doctor.id?.toString?.() ?? document.doctor._id?.toString?.(),
+      name: document.doctor.name,
+      specialization: document.doctor.specialization,
+      ...(document.doctor.hospital !== undefined ? { hospital: document.doctor.hospital } : {}),
+      ...(document.doctor.phone !== undefined ? { phone: document.doctor.phone } : {}),
+      ...(document.doctor.email !== undefined ? { email: document.doctor.email } : {}),
+      profilePicture: document.doctor.profilePicture ?? null,
+    }
     : null;
 
   return {
@@ -1460,17 +1459,17 @@ function serializeRegistrationRequest(request) {
     phone: request.phone,
     ...(request.type === "doctor"
       ? {
-          specialization: request.specialization,
-          hospital: request.hospital,
-          profilePicture: request.profilePicture ?? null,
-        }
+        specialization: request.specialization,
+        hospital: request.hospital,
+        profilePicture: request.profilePicture ?? null,
+      }
       : {
-          age: request.age,
-          gender: request.gender,
-          condition: request.condition,
-          doctorId: request.doctorId?.toString?.() ?? null,
-          doctor: request.doctorSnapshot ?? null,
-        }),
+        age: request.age,
+        gender: request.gender,
+        condition: request.condition,
+        doctorId: request.doctorId?.toString?.() ?? null,
+        doctor: request.doctorSnapshot ?? null,
+      }),
     createdAt: toIso(request.createdAt),
   };
 }
@@ -1508,9 +1507,9 @@ async function registrationRequestStateError(requestId) {
     const approvedPatient = approvedDoctor
       ? null
       : await patientsCollection().findOne(
-          { registrationRequestId: requestId },
-          { projection: { _id: 1 } },
-        );
+        { registrationRequestId: requestId },
+        { projection: { _id: 1 } },
+      );
     if (approvedDoctor || approvedPatient) {
       return ApiError.conflict("This registration request has already been approved.");
     }
@@ -3148,7 +3147,7 @@ async function startServer() {
   console.info("[db] Indexes verified.");
 
   const app = createApp();
-  const server = app.listen(env.PORT, "0.0.0.0" () => {
+  const server = app.listen(env.PORT, "0.0.0.0", () => {
     console.info(`[api] Doctor Tracker API listening on port ${env.PORT}.`);
   });
 
@@ -3191,6 +3190,6 @@ async function main() {
 
 main().catch(async (error) => {
   console.error(`[api] Failed: ${error.message}`);
-  await closeAuthConnection().catch(() => {});
+  await closeAuthConnection().catch(() => { });
   process.exitCode = 1;
 });
