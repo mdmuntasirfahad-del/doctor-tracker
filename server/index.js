@@ -3148,7 +3148,7 @@ async function startServer() {
   console.info("[db] Indexes verified.");
 
   const app = createApp();
-  const server = app.listen(env.PORT, () => {
+  const server = app.listen(env.PORT, "0.0.0.0" () => {
     console.info(`[api] Doctor Tracker API listening on port ${env.PORT}.`);
   });
 
